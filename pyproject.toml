@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "samsclub-datascienceservices-ailabs-mlops-summit"
+authors = [
+    "Matt Harris <matthew.w.harris@walmart.com>",
+]
+version = "0.0.1"
+packages = [{include = "day_1"},{include = "day_2"}]
+description = "MLOps Summit 2024 Modules"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.12.0"
+pandas = "2.2.2"
+scikit-learn = "1.5.1"
+pyarrow = "17.0.0"
+kfp = "2.9.0"
+google-cloud-aiplatform = "1.73.0"
+xgboost = "2.1.0"
+pytest = "*"
+
+# Feature Store
+walmart-mlplatforms-wmfs = {version = "0.0.30", source = "element"}
+google-cloud-secret-manager = "2.16.1"
+dask = {version = "2024.2.1", extras = ["dataframe"]}
+
+[[tool.poetry.source]]
+url = "https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/pythonhosted-pypi-release-remote/simple"
+name = "walmart"
+priority = "primary"
+
+[[tool.poetry.source]]
+name = "dss-read"
+url = "https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/datascienceservices-pypi/simple"
+priority = "explicit"
+
+[[tool.poetry.source]]
+name = "element"
+url = "https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/mlplatforms-pypi/simple"
+priority = "explicit"
+
+[tool.pytest.ini_options]
+pythonpath = "."
+addopts = [
+    "--import-mode=importlib",
+]
+

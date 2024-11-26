@@ -31,7 +31,8 @@ To install homebrew, run the following command:
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-NOTE: This command may only work if you are off the walmart network.
+[!NOTE]
+This command may only work if you are off the walmart network.
 
 ## Git Setup
 

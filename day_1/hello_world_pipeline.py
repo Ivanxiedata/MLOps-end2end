@@ -4,40 +4,51 @@ from google.cloud import aiplatform
 from kfp import dsl
 from kfp import compiler
 from day_1.components import file_generator, file_updater, gather_metrics
-
-GCP_PROJECT = "dev-sams-ds-train"
-SERVICE_ACCOUNT = "svc-ds-train@dev-sams-ds-train.iam.gserviceaccount.com"
-NETWORK = "projects/12856960411/global/networks/vpcnet-private-svc-access-usc1"
-PIPELINE_ROOT = "gs://mlops-summit"
+from day_1.components.config import (
+    GCP_PROJECT,
+    SERVICE_ACCOUNT,
+    NETWORK,
+    PIPELINE_NAME,
+    PIPELINE_ROOT,
+    CPU_LIMIT,
+    MEMORY_LIMIT)
 
 outputs = NamedTuple("outputs", artifact=dsl.Artifact, metrics=dsl.Metrics)
 
 
 @dsl.pipeline(
-    name="hello world pipeline",
-    pipeline_root="gs://mlops-summit",
+    name=PIPELINE_NAME,
+    pipeline_root=PIPELINE_ROOT,
 )
 def pipeline() -> outputs:
-
     file_generator_task = (
         file_generator()
         .set_display_name("File Generator")
-        .set_cpu_limit("2")
-        .set_memory_limit("2G")
+        .set_cpu_limit(CPU_LIMIT)  # the CPU MAX limit to 96 CPUs
+        .set_memory_limit(MEMORY_LIMIT)  # the memory MAX limit to 624 Gigabytes
+        # .set_accelerator_type('NVIDIA_A100_80GB')
+        # .set_accelerator_limit(2)
+        # .add_node_selector_constraint('GPU')
     )
 
     file_updater_task = (
         file_updater(artifact=file_generator_task.output)
         .set_display_name("File Updater")
-        .set_cpu_limit("2")
-        .set_memory_limit("2G")
+        .set_cpu_limit(CPU_LIMIT)  # the CPU MAX limit to 96 CPUs
+        .set_memory_limit(MEMORY_LIMIT)  # the memory MAX limit to 624 Gigabytes
+        # .set_accelerator_type('NVIDIA_A100_80GB')
+        # .set_accelerator_limit(2)
+        # .add_node_selector_constraint('GPU')
     )
 
     gather_metrics_task = (
         gather_metrics(artifact=file_updater_task.output)
         .set_display_name("Gather Metrics")
-        .set_cpu_limit("2")
-        .set_memory_limit("2G")
+        .set_cpu_limit(CPU_LIMIT)  # the CPU MAX limit to 96 CPUs
+        .set_memory_limit(MEMORY_LIMIT)  # the memory MAX limit to 624 Gigabytes
+        # .set_accelerator_type('NVIDIA_A100_80GB')
+        # .set_accelerator_limit(2)
+        # .add_node_selector_constraint('GPU')
     )
 
     return outputs(
@@ -46,7 +57,6 @@ def pipeline() -> outputs:
 
 
 if __name__ == "__main__":
-
     TMP_PIPELINE_YAML = "/tmp/hello-world-pipeline.yaml"
 
     compiler.Compiler().compile(

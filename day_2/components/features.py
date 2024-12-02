@@ -1,5 +1,4 @@
 from typing import NamedTuple
-
 from kfp import dsl
 
 
@@ -9,6 +8,7 @@ from kfp import dsl
         "walmart-mlplatforms-wmfs == 0.0.28",
         "google-cloud-secret-manager == 2.16.1",
         "dask[dataframe] == 2024.2.1",
+        "scikit-learn == 1.5.1",
     ],
     pip_index_urls=[
         "https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/pythonhosted-pypi-release-remote/simple",
@@ -18,13 +18,15 @@ from kfp import dsl
 def fetch_iris_features(
     project_id: str,
     feature_view: str,
-) -> dsl.Dataset:  # type: ignore
+    test_ratio: float = 0.25,
+) -> NamedTuple("outputs", train_set=dsl.Dataset, test_set=dsl.Dataset):  # type: ignore
     import logging
     import os
     import time
 
     from google.cloud import secretmanager
     from wmfs.feature_mart import FeatureMart
+    from sklearn.model_selection import train_test_split
 
     # Set this to False to disable telemetry to usage.feast.dev
     os.environ["FEAST_USAGE"] = "False"
@@ -99,39 +101,12 @@ def fetch_iris_features(
     logger.info(f"Fetching features took {time.time() - t} seconds")
     features = features.drop(["membership_id", "event_timestamp"], axis=1)
 
+    # map species to integers for label encoding
+    label_mapping = {"setosa": 0, "virginica": 1, "versicolor": 2}
+    features["species"] = features["species"].map(label_mapping)
+
     logger.info(f"Succesfully fetched all features with size {features.shape}")
     logger.info(f"Fetched columns are {features.columns}")
-
-    features_output = dsl.Dataset(uri=dsl.get_uri(suffix="features.parquet.gzip"))
-    features.to_parquet(features_output.path, index=False, compression="gzip")
-
-    return features_output
-
-
-@dsl.component(
-    base_image="python:3.10-slim",
-    packages_to_install=[
-        "pandas==2.2.2",
-        "scikit-learn==1.5.1",
-        "pyarrow==17.0.0",
-    ],
-)
-def create_training_data(
-    features_input: dsl.Dataset,
-    test_ratio: float = 0.25,
-) -> NamedTuple("outputs", train_set=dsl.Dataset, test_set=dsl.Dataset):  # type: ignore
-    import logging
-
-    import pandas as pd
-    from sklearn.model_selection import train_test_split
-
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
-    logger = logging.getLogger(__name__)
-
-    # Load the parquet file
-    features = pd.read_parquet(features_input.path)
 
     train_df, test_df = train_test_split(
         features, test_size=test_ratio, random_state=1128
@@ -139,11 +114,11 @@ def create_training_data(
     logger.info(f"training dataset shape {train_df.shape}")
     logger.info(f"test dataset shape {test_df.shape}")
 
-    train_set = dsl.Dataset(uri=dsl.get_uri(suffix="train_set.parquet.gzip"))
-    train_df.to_parquet(train_set.path, index=False, compression="gzip")
+    train_set = dsl.Dataset(uri=dsl.get_uri(suffix="train_set.parquet"))
+    train_df.to_parquet(train_set.path, index=False)
 
-    test_set = dsl.Dataset(uri=dsl.get_uri("test_set.parquet.gzip"))
-    test_df.to_parquet(test_set.path, index=False, compression="gzip")
+    test_set = dsl.Dataset(uri=dsl.get_uri("test_set.parquet"))
+    test_df.to_parquet(test_set.path, index=False)
 
     outputs = NamedTuple("outputs", train_set=dsl.Dataset, test_set=dsl.Dataset)
     return outputs(train_set, test_set)

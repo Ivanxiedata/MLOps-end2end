@@ -1,0 +1,8 @@
+envs:
+  local-dev:
+    PIPELINE_NAME: "mlops-summit"
+    PROJECT_ID: "dev-sams-ds-train"
+    SERVICE_ACCOUNT: "svc-ds-train@dev-sams-ds-train.iam.gserviceaccount.com"
+    VPC_NETWORK: "projects/12856960411/global/networks/vpcnet-private-svc-access-usc1" 
+    MODEL_NAME: "iris_classification_xgboost_model"
+    

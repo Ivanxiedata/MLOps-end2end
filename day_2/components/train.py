@@ -1,13 +1,14 @@
 from typing import Dict
 from kfp import dsl
 
+
 @dsl.component(
     base_image="python:3.10-slim",
     packages_to_install=[
-        'xgboost',
-        'pandas',
-        'scikit-learn',
-        'pyarrow',
+        "xgboost",
+        "pandas",
+        "scikit-learn",
+        "pyarrow",
     ],
 )
 def train(
@@ -23,8 +24,7 @@ def train(
 
     df_train = pd.read_parquet(train_set.path)
     dmatrix = xgb.DMatrix(
-        data=df_train.drop(target_label, axis=1), 
-        label=df_train[target_label]
+        data=df_train.drop(target_label, axis=1), label=df_train[target_label]
     )
 
     model = xgb.train(
@@ -34,7 +34,7 @@ def train(
     )
 
     # Save model
-    model_output = dsl.Model(uri=dsl.get_uri(suffix='model.joblib'))
+    model_output = dsl.Model(uri=dsl.get_uri(suffix="model.joblib"))
     joblib.dump(model, model_output.path)
 
     return model_output

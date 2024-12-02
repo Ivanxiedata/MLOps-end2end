@@ -1,5 +1,6 @@
 from kfp import dsl
 
+
 @dsl.component(
     base_image="python:3.10-slim",
 )

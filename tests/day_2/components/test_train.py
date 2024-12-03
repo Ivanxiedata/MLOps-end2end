@@ -2,7 +2,7 @@ from day_2.components.train import train
 from kfp import dsl
 
 
-def test_train(iris_train_set, xgb_parms):
+def test_train(iris_train_set):
     model = train.python_func(
         train_set=iris_train_set,
         hyperparameters=dict(

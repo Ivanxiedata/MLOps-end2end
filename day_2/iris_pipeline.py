@@ -73,8 +73,8 @@ def pipeline():
     mlflow_task = (
         mlflow_run(
             model=train_task.output,  # Use the "model" output from the train task
-            experiment_id="",  # Replace with actual experiment ID or pipeline input
-            run_id="",  # Replace with actual run ID or pipeline input
+            experiment_id="iris_training_mlops",  # Replace with actual experiment ID or pipeline input
+            run_id="241204",  # Replace with actual run ID or pipeline input
             tags={"pipeline": "iris_training"},  # Example tag
             metrics=evaluate_model_task.outputs["eval_metrics"],  # Use "eval_metrics" from evaluate_model task
             feature_importance=evaluate_model_task.outputs["feature_importance"],

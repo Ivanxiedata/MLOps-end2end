@@ -35,10 +35,17 @@ def mlflow_run(
     )
     logger = logging.getLogger(__name__)
 
+    experiment_id = mlflow.get_experiment_by_name(experiment_name)
+    if experiment_id is None:
+        experiment_id = mlflow.create_experiment(name=experiment_name)
+    else:
+        experiment_id = mlflow.set_experiment(experiment_name).experiment_id
+
+
     try:
         with mlflow.start_run(
             run_name=run_id,
-            experiment_name=experiment_id
+            experiment_id=experiment_id
         ):
             # Load and log the model
             loaded_model = joblib.load(model.path)
@@ -79,5 +86,6 @@ def mlflow_run(
 
     except Exception as e:  # Fix typo "Execption"
         logger.error(f"Failed to log to MLflow: {e}")
+        raise e
 
     logger.info("MLflow run completed successfully.")

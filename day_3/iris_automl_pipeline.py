@@ -42,7 +42,7 @@ def pipeline(
         train_set=fetch_iris_features_task.outputs["train_set"],
         test_set=fetch_iris_features_task.outputs["test_set"],
         target_label=target_label,
-        num_class=num_class,
+        # num_class=num_class,
         num_boost_round=num_boost_round,
         early_stop_rounds=early_stop_rounds,
         eval_ratio=eval_ratio,

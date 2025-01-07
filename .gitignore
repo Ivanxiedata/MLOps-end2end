@@ -3,3 +3,4 @@ __pycache__
 kaggle.json
 secret_keys
 mlruns
+day_2/data/m5-forecasting-accuracy

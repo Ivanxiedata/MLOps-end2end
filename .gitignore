@@ -2,5 +2,6 @@ __pycache__
 .DS_Store
 kaggle.json
 secret_keys
+
 mlruns
 day_2/data/m5-forecasting-accuracy

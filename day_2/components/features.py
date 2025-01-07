@@ -1,124 +1,85 @@
 from typing import NamedTuple
 from kfp import dsl
 
-
 @dsl.component(
     base_image="python:3.10-slim",
     packages_to_install=[
-        "walmart-mlplatforms-wmfs == 0.0.28",
-        "google-cloud-secret-manager == 2.16.1",
-        "dask[dataframe] == 2024.2.1",
-        "scikit-learn == 1.5.1",
-    ],
-    pip_index_urls=[
-        "https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/pythonhosted-pypi-release-remote/simple",
-        "https://pypi.ci.artifacts.walmart.com/artifactory/api/pypi/mlplatforms-pypi/simple",
+        "pandas==2.2.3",
+        "scikit-learn==1.5.1",
+        "google-cloud-bigquery==3.10.0",
+        "zipfile36==0.1.3",
+        "loguru==0.7.3",
+        "db-dtypes==1.1.0",
     ],
 )
-def fetch_iris_features(
-    project_id: str,
-    feature_view: str,
-    test_ratio: float = 0.25,
-) -> NamedTuple("outputs", train_set=dsl.Dataset, test_set=dsl.Dataset):  # type: ignore
-    import logging
-    import os
-    import time
-
-    from google.cloud import secretmanager
-    from wmfs.feature_mart import FeatureMart
+def fetch_dataset(
+        source: str,  # "local" or "bigquery"
+        csv_file_name: str,  # Name of the CSV file inside the ZIP (for "local" source)
+        test_ratio: float = 0.25,
+        extracted_path: str = None,
+        bigquery_query: str = None,
+) -> NamedTuple("outputs", [("train_set", dsl.Dataset), ("test_set", dsl.Dataset)]):
+    import pandas as pd
     from sklearn.model_selection import train_test_split
+    import os
+    from google.cloud import bigquery
+    from loguru import logger
 
-    # Set this to False to disable telemetry to usage.feast.dev
-    os.environ["FEAST_USAGE"] = "False"
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
-    logger = logging.getLogger(__name__)
+    # Helper function: Load dataset from local files
+    def load_local_dataset(extract_path, csv_name) -> pd.DataFrame:
+        if not os.path.exists(extract_path):
+            print('Path does not exist.')
 
-    os.environ["GCP_PROJECT_ID"] = project_id
+        csv_path = os.path.join(extract_path, csv_name)
+        if not os.path.exists(csv_path):
+            raise FileNotFoundError(f"CSV file {csv_name} not found in {extract_path}.")
 
-    def access_secret_version(secret_id):
-        project_id = os.environ["GCP_PROJECT_ID"]
+        return pd.read_csv(csv_path)
 
-        client = secretmanager.SecretManagerServiceClient()
-        secret_name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+    # Helper function: Load dataset from BigQuery
+    def load_bigquery_dataset(query: str) -> pd.DataFrame:
+        client = bigquery.Client(project="mlops-end-to-end-443901")
+        query_job = client.query(query)
+        return query_job.to_dataframe()
 
-        response = client.access_secret_version(request={"name": secret_name})
-        secret_string = response.payload.data.decode("UTF-8")
+    # Load dataset based on the source
+    if source == "local":
+        logger.info(f"Loading dataset from local files... {csv_file_name}")
+        if not (extracted_path and csv_file_name):
+            raise ValueError(
+                "For 'local' source, provide 'dataset_zip_path', 'extracted_path', and 'csv_file_name'."
+            )
+        data = load_local_dataset(extracted_path, csv_file_name)
+    elif source == "bigquery":
+        if not bigquery_query:
+            raise ValueError("For 'bigquery' source, provide 'bigquery_query'.")
+        data = load_bigquery_dataset(bigquery_query)
+    else:
+        raise ValueError("Invalid source. Choose either 'local' or 'bigquery'.")
 
-        return secret_string
+    # Log dataset information
+    print(f"Loaded dataset shape: {data.shape}")
+    print(f"Columns: {data.columns}")
 
-    os.environ["FEATURESTORE_API_ENV"] = access_secret_version("FEATURESTORE_API_ENV")
-    os.environ["FEATURESTORE_API_KEY"] = access_secret_version("FEATURESTORE_API_KEY")
-    os.environ["FEATURESTORE_API_SECRET"] = access_secret_version(
-        "FEATURESTORE_API_SECRET"
-    )
-    logger.info("Fetched Feature Store credentials")
+    # Perform any necessary preprocessing (update according to your specific data)
+    data = data.dropna()  # Example: Drop missing values
 
-    logger.info("Get Feature Store client")
-    store = FeatureMart(fs_name="fs_bq_bt", namespace="sams")
-
-    logger.info(f"Retrieving feature view {feature_view}")
-    subcat_vw = store.get_feature_view(feature_view)
-
-    logger.info(f"Available features are {subcat_vw.features}")
-
-    feature_names = []
-    selected_features = [
-        f.name for f in subcat_vw.features
-    ]  # ["sepal_length", "sepal_width", "petal_length", petal_width]
-    for feature in selected_features:
-        feature_names.append(f"{feature_view}:{feature}")
-
-    logger.info(f"Feature names to pull are {feature_names}")
-
-    # Access the data source of the feature view
-    data_source = subcat_vw.batch_source
-    logger.info(f"The data source of the feature view is {data_source.name}")
-
-    # Get the table name or BigQuery SQL string
-    table_name_or_sql = data_source.get_table_query_string()
-    logger.info(f"The table name or sql string is {table_name_or_sql}")
-
-    # Retrieve features
-    entity_sql = f"""
-        SELECT
-            membership_id,
-            MAX(event_timestamp) AS event_timestamp,
-        FROM {table_name_or_sql}
-        WHERE DATE(event_timestamp) BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH) AND CURRENT_DATE()
-        GROUP BY membership_id
-    """
-
-    logger.info("Fetching features from feature store")
-
-    t = time.time()
-    features = store.get_historical_features(
-        entity_df=entity_sql,
-        features=feature_names,
-    ).to_df(timeout=10000)
-    logger.info(f"Fetching features took {time.time() - t} seconds")
-    features = features.drop(["membership_id", "event_timestamp"], axis=1)
-
-    # map species to integers for label encoding
-    label_mapping = {"setosa": 0, "virginica": 1, "versicolor": 2}
-    features["species"] = features["species"].map(label_mapping)
-
-    logger.info(f"Succesfully fetched all features with size {features.shape}")
-    logger.info(f"Fetched columns are {features.columns}")
-
+    # Split into training and testing datasets
     train_df, test_df = train_test_split(
-        features, test_size=test_ratio, random_state=1128
+        data, test_size=test_ratio, random_state=1128
     )
-    logger.info(f"training dataset shape {train_df.shape}")
-    logger.info(f"test dataset shape {test_df.shape}")
 
+    print(f"Training dataset shape: {train_df.shape}")
+    print(f"Test dataset shape: {test_df.shape}")
+
+    # Save the training and test_connection datasets
     train_set = dsl.Dataset(uri=dsl.get_uri(suffix="train_set.parquet"))
     train_df.to_parquet(train_set.path, index=False)
 
-    test_set = dsl.Dataset(uri=dsl.get_uri("test_set.parquet"))
+    test_set = dsl.Dataset(uri=dsl.get_uri(suffix="test_set.parquet"))
     test_df.to_parquet(test_set.path, index=False)
 
-    outputs = NamedTuple("outputs", train_set=dsl.Dataset, test_set=dsl.Dataset)
+    # Return outputs
+    outputs = NamedTuple("outputs", [("train_set", dsl.Dataset), ("test_set", dsl.Dataset)])
     return outputs(train_set, test_set)

@@ -12,6 +12,6 @@ def test_pipeline_compilable(pipeline):
 
     compiler.Compiler().compile(
         pipeline_func=pipeline,
-        package_path='/tmp/test-pipeline-compilable.json'
+        package_path='/tmp/test_connection-pipeline-compilable.json'
     )
 

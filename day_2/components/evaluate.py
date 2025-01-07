@@ -12,35 +12,37 @@ from typing import Dict, NamedTuple
     ],
 )
 def evaluate_model(
-    test_set: dsl.Dataset,
-    model: dsl.Model,
-    target_label: str,
-    xgb_parms: Dict,
+        test_set: dsl.Dataset,
+        model: dsl.Model,
+        target_label: str,
+        xgb_parms: Dict,
 ) -> NamedTuple("outputs", eval_metrics=dsl.Metrics, feature_importance=dsl.Metrics):  # type: ignore
     import xgboost as xgb
     import pandas as pd
     import joblib
     from collections.abc import Mapping
-    from sklearn.metrics import (
-        classification_report,
-    )
+    from sklearn.metrics import classification_report
 
-    # Load test dataset
+    # Load test_connection dataset
     df_test = pd.read_parquet(test_set.path)
+
+    # Load model and LabelEncoder
+    model, label_encoder = joblib.load(model.path)
+
+    # Encode test_connection labels
+    df_test[target_label] = label_encoder.transform(df_test[target_label])
     df_x = df_test.drop(target_label, axis=1)
     df_y = df_test[target_label]
     d_test = xgb.DMatrix(data=df_x, label=df_y)
 
-    # Make predictions on the test data
-    # this prediction reshaping is specific to multinomial classification
-    model: xgb.Booster = joblib.load(model.path)
+    # Make predictions on the test_connection data
     y_pred = model.predict(d_test).reshape(-1, xgb_parms["num_class"]).argmax(axis=1)
     if df_test.shape[0] != len(y_pred):
         raise ValueError(
             f"{df_test[0].shape} records were used for evaluation, but {len(y_pred)} predictions were generated. Ensure that num_class accurately reflects the number of classifications you wish to predict with."
         )
 
-    # gather standard classification metrics
+    # Gather standard classification metrics
     eval_metrics = dsl.Metrics()
     report = classification_report(df_y, y_pred, output_dict=True)
 
@@ -55,7 +57,7 @@ def evaluate_model(
 
     flatten_metrics(report)
 
-    # gather feature importance metrics
+    # Gather feature importance metrics
     feature_importance = dsl.Metrics()
     fi_dict = model.get_score(importance_type="gain")
     for k in sorted(fi_dict, key=fi_dict.get, reverse=True):

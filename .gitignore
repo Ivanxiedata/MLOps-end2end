@@ -1,2 +1,5 @@
 __pycache__
 .DS_Store
+kaggle.json
+secret_keys
+mlruns
